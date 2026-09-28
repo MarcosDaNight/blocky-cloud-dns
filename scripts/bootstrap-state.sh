@@ -3,9 +3,13 @@
 # Object Storage da Magalu. Idempotente. Requer AWS_ACCESS_KEY_ID/SECRET do .env.
 set -euo pipefail
 
-bucket=$(sed -nE 's/^ *bucket *= *"([^"]+)".*/\1/p' "$(dirname "$0")/../infra/versions.tf")
-endpoint=https://br-se1.magaluobjects.com
-s3() { AWS_REGION=br-se1 aws --endpoint-url "$endpoint" s3api "$@"; }
+# Bucket, região e endpoint vêm do backend em infra/versions.tf (fonte única).
+versions="$(dirname "$0")/../infra/versions.tf"
+field() { sed -nE "s/^ *$1 *= *\"([^\"]+)\".*/\\1/p" "$versions" | head -1; }
+bucket=$(field bucket)
+region=$(field region)
+endpoint=$(field s3)
+s3() { AWS_REGION="$region" aws --endpoint-url "$endpoint" s3api "$@"; }
 
 if s3 head-bucket --bucket "$bucket" 2>/dev/null; then
   echo "bucket $bucket já existe"
