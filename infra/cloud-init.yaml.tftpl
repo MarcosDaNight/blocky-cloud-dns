@@ -3,6 +3,8 @@
 # Tudo que roda na VM (containers, config, units systemd) vem do repositório.
 
 timezone: America/Sao_Paulo
+# Sem o stub do systemd-resolved o hostname local deixa de resolver; o /etc/hosts cobre.
+manage_etc_hosts: localhost
 package_update: true
 package_upgrade: true
 packages:
