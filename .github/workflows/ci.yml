@@ -1,0 +1,45 @@
+name: ci
+
+# Gate do GitOps: a VM só aplica o que está na main, e nada entra na main sem passar aqui.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - run: terraform fmt -check -recursive -diff
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+
+  deploy-config:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy
+    steps:
+      - uses: actions/checkout@v7
+      - name: compose
+        run: docker compose config --quiet
+      - name: blocky validate
+        run: docker compose run --rm --no-deps -T blocky validate
+      - name: promtool check config
+        run: docker compose run --rm --no-deps -T --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
+      - name: dashboards JSON
+        run: for f in grafana/dashboards/*.json; do python3 -m json.tool "$f" >/dev/null || exit 1; done
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck scripts/*.sh

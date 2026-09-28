@@ -1,0 +1,20 @@
+# PRs semanais de atualização. Com o CI verde e o merge na main, a VM aplica sozinha.
+version: 2
+updates:
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+    groups:
+      monitoring:
+        patterns: ["prom/*", "grafana/*"]
+
+  - package-ecosystem: terraform
+    directory: /infra
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

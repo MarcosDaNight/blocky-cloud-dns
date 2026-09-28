@@ -1,0 +1,72 @@
+# Stack da VM. Somente a porta 53 é publicada para fora; UIs e APIs ficam em
+# 127.0.0.1 e são acessadas via túnel SSH (`make tunnel`).
+# Limites de memória dimensionados para a BV1-1-10 (1 GB RAM + 1 GB swap).
+name: blocky
+
+services:
+  blocky:
+    image: spx01/blocky:v0.35.0
+    restart: unless-stopped
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "127.0.0.1:4000:4000/tcp"
+    environment:
+      TZ: America/Sao_Paulo
+    volumes:
+      - ./blocky/config.yml:/app/config.yml:ro
+      - blocky-cache:/app/cache
+      - blocky-logs:/logs
+    mem_limit: 384m
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --storage.tsdb.retention.size=1GB
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    mem_limit: 256m
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    mem_limit: 64m
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      # Senha do admin gerada no bootstrap da VM (nunca versionada).
+      - path: /etc/blocky-cloud-dns/grafana.env
+        required: false
+    environment:
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/blocky.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    mem_limit: 192m
+
+volumes:
+  blocky-cache:
+  blocky-logs:
+  prometheus-data:
+  grafana-data:

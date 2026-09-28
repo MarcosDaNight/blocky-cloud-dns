@@ -1,0 +1,5 @@
+# Copie para terraform.tfvars (gitignored). `make update-ip` mantém home_ip atualizado.
+home_ip = "203.0.113.10"
+
+# extra_allowed_cidrs = ["198.51.100.7/32"]
+# healthcheck_url     = "https://hc-ping.com/<uuid>"

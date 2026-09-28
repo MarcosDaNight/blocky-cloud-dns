@@ -1,0 +1,53 @@
+#cloud-config
+# Bootstrap mínimo: prepara o host e entrega o controle ao GitOps (scripts/gitops-sync.sh).
+# Tudo que roda na VM (containers, config, units systemd) vem do repositório.
+
+timezone: America/Sao_Paulo
+package_update: true
+package_upgrade: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+  - dnsutils
+  - curl
+
+swap:
+  filename: /swapfile
+  size: 1G
+
+write_files:
+  # Libera a porta 53 do host (o stub do systemd-resolved ocupa 127.0.0.53:53).
+  - path: /etc/systemd/resolved.conf.d/no-stub.conf
+    content: |
+      [Resolve]
+      DNSStubListener=no
+  # Logs de container com rotação: o disco é de 10 GB.
+  - path: /etc/docker/daemon.json
+    content: |
+      {"log-driver": "local", "log-opts": {"max-size": "10m", "max-file": "3"}}
+  - path: /etc/blocky-cloud-dns/env
+    permissions: "0600"
+    content: |
+      REPO_URL=${repo_url}
+      REPO_BRANCH=${repo_branch}
+      HEALTHCHECK_URL=${healthcheck_url}
+  # Patches de segurança automáticos, com reboot de madrugada se necessário.
+  - path: /etc/apt/apt.conf.d/52blocky-cloud-dns
+    content: |
+      Unattended-Upgrade::Automatic-Reboot "true";
+      Unattended-Upgrade::Automatic-Reboot-Time "04:30";
+
+runcmd:
+  - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+  - systemctl restart systemd-resolved
+  - systemctl enable --now docker
+  - install -m 0600 /dev/null /etc/blocky-cloud-dns/grafana.env
+  - echo "GF_SECURITY_ADMIN_PASSWORD=$(openssl rand -hex 16)" > /etc/blocky-cloud-dns/grafana.env
+  - usermod -aG docker ubuntu
+  - |
+    for i in $(seq 1 60); do
+      git clone --quiet --branch "${repo_branch}" "${repo_url}" /opt/blocky-cloud-dns && break
+      echo "repositório indisponível, tentando novamente em 30s ($i/60)"; sleep 30
+    done
+  - /opt/blocky-cloud-dns/scripts/gitops-sync.sh --force

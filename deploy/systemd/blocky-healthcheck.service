@@ -1,0 +1,7 @@
+[Unit]
+Description=blocky-cloud-dns: verifica resolução e bloqueio de DNS
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/blocky-cloud-dns/scripts/healthcheck.sh

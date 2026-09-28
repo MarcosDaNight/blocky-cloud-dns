@@ -1,0 +1,10 @@
+[Unit]
+Description=blocky-cloud-dns: reconcilia a VM com o repositório Git
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/blocky-cloud-dns/scripts/gitops-sync.sh
+TimeoutStartSec=15min
