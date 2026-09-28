@@ -7,7 +7,7 @@ variable "mgc_api_key" {
 variable "region" {
   description = "Região da Magalu Cloud."
   type        = string
-  default     = "br-se1"
+  default     = "br-ne1"
 }
 
 variable "name" {

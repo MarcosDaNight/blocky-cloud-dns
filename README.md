@@ -11,7 +11,7 @@ flowchart LR
     dev["Celulares, TVs, PCs"] --> router["Roteador<br/>(DNS = IP da VM)"]
   end
   router -- "UDP/TCP 53<br/>só o IP de casa passa" --> sg
-  subgraph mgc["Magalu Cloud · br-se1"]
+  subgraph mgc["Magalu Cloud · br-ne1"]
     sg["Security Group"] --> blocky
     subgraph vm["VM BV1-1-10 · Ubuntu 24.04"]
       blocky["Blocky"] --> prom["Prometheus"] --> graf["Grafana"]

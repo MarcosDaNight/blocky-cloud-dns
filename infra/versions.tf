@@ -12,12 +12,12 @@ terraform {
   # criado uma única vez por `make bootstrap`. Credenciais via AWS_ACCESS_KEY_ID /
   # AWS_SECRET_ACCESS_KEY (key pair da API key, carregadas do .env).
   backend "s3" {
-    bucket = "blocky-cloud-dns-tfstate-b29a4ccd"
+    bucket = "blocky-cloud-dns-tfstate-ne1-b29a4ccd"
     key    = "blocky-cloud-dns/terraform.tfstate"
-    region = "br-se1"
+    region = "br-ne1"
 
     endpoints = {
-      s3 = "https://br-se1.magaluobjects.com"
+      s3 = "https://br-ne1.magaluobjects.com"
     }
 
     use_path_style              = true
