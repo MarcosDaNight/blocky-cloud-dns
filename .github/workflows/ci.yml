@@ -35,11 +35,10 @@ jobs:
         run: docker compose run --rm --no-deps -T blocky validate
       - name: promtool check config
         run: docker compose run --rm --no-deps -T --entrypoint promtool prometheus check config /etc/prometheus/prometheus.yml
-      - name: dashboards JSON
-        run: for f in grafana/dashboards/*.json; do python3 -m json.tool "$f" >/dev/null || exit 1; done
 
-  shellcheck:
+  pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: shellcheck scripts/*.sh
+      - uses: hashicorp/setup-terraform@v4
+      - run: pipx run pre-commit run --all-files --show-diff-on-failure

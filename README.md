@@ -29,7 +29,7 @@ flowchart LR
 |---|---|---|
 | Infra (VM, IP, firewall) | Terraform em `infra/`, state remoto no Object Storage da Magalu | `make plan` / `make apply` na sua máquina |
 | Aplicação (Blocky, monitoramento) | Docker Compose em `deploy/` | **GitOps**: merge na `main` → a VM aplica sozinha em ~2 min |
-| Qualidade | GitHub Actions (`.github/workflows/ci.yml`) | todo PR/push valida Terraform, config do Blocky, Prometheus e scripts |
+| Qualidade | pre-commit local + GitHub Actions (`.github/workflows/ci.yml`) | cada commit passa por fmt, shellcheck e varredura de segredos (gitleaks); cada PR/push valida Terraform, config do Blocky e Prometheus |
 | Atualizações | Dependabot + unattended-upgrades | PRs semanais de imagens; patches de SO automáticos (reboot 04:30 se preciso) |
 
 ### Decisões de projeto
@@ -84,8 +84,9 @@ Magalu Cloud (variável `ssh_key_name`, padrão `mgdn-key`).
 # 1. Credenciais: crie uma API key com escopo mínimo (o comando está no .env.example)
 cp .env.example .env    # preencha com api_key, key_pair_id e key_pair_secret
 
-# 2. Bucket do state + terraform init
+# 2. Bucket do state + terraform init + hooks do pre-commit
 make bootstrap
+make hooks              # requer `pip install pre-commit`
 
 # 3. Variáveis locais (o IP de casa é detectado automaticamente)
 cp infra/terraform.tfvars.example infra/terraform.tfvars
@@ -130,6 +131,7 @@ make help
 | `make grafana-password` | senha do admin do Grafana |
 | `make ssh` | shell na VM |
 | `make update-ip` | reaplica o firewall com o IP atual de casa |
+| `make lint` | pre-commit em todos os arquivos + `terraform validate` |
 
 ### Mudar a configuração do Blocky
 

@@ -74,13 +74,13 @@ test: ## Testa resolução e bloqueio a partir desta máquina
 
 # --- Qualidade ------------------------------------------------------------------
 
-.PHONY: fmt lint
+.PHONY: hooks fmt lint
+hooks: ## Instala os hooks do pre-commit neste clone
+	@pre-commit install
+
 fmt: ## Formata o Terraform
 	@$(TF) fmt -recursive $(TFDIR)
 
-lint: ## Validações locais (as mesmas do CI, exceto as que precisam de Docker)
-	@$(TF) fmt -check -recursive $(TFDIR)
-	@cd $(TFDIR) && $(TF) validate
-	@if command -v shellcheck >/dev/null; then shellcheck scripts/*.sh; else echo "shellcheck ausente, pulando"; fi
-	@for f in deploy/grafana/dashboards/*.json; do python3 -m json.tool $$f >/dev/null; done
-	@echo "lint ok"
+lint: ## Validações locais: pre-commit em todos os arquivos + terraform validate
+	@pre-commit run --all-files
+	@cd $(TFDIR) && $(TF) validate -no-color >/dev/null && echo "terraform validate ok"
