@@ -37,7 +37,7 @@ update-ip: ## Detecta o IP atual de casa e atualiza o firewall (AUTO_APPROVE=1 p
 
 # --- Operação -------------------------------------------------------------------
 
-.PHONY: ssh tunnel status sync logs querylog test
+.PHONY: ssh tunnel grafana-password status vm-bootstrap sync logs querylog test
 ssh: ## SSH na VM
 	@$(SSH)
 
@@ -54,6 +54,9 @@ status: ## Estado dos containers, commit aplicado e último sync
 	@$(SSH) 'echo "commit aplicado: $$(sudo cat /var/lib/blocky-cloud-dns/applied | cut -c1-7)"; \
 	  $(COMPOSE) ps --format "table {{.Service}}\t{{.Status}}"; echo; \
 	  systemctl list-timers "blocky-*" --no-pager; echo; free -h; df -h /'
+
+vm-bootstrap: ## Clona o repo na VM (se faltar) e roda o primeiro sync — se o repo não estava acessível no boot
+	@$(SSH) "sudo bash -c '. /etc/blocky-cloud-dns/env; test -d /opt/blocky-cloud-dns/.git || git clone -q -b \$$REPO_BRANCH \$$REPO_URL /opt/blocky-cloud-dns; /opt/blocky-cloud-dns/scripts/gitops-sync.sh --force'"
 
 sync: ## Força o GitOps sync agora (sem esperar o timer)
 	@$(SSH) 'sudo systemctl start blocky-gitops.service; sudo journalctl -u blocky-gitops -n 20 --no-pager'

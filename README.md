@@ -218,3 +218,4 @@ firewall. O bucket de state continua existindo e pode ser apagado manualmente.
 | Commit não foi aplicado | `make ssh` e `journalctl -u blocky-gitops -n 50` (validação falhou? houve rollback?) |
 | Algum app/site quebrou | `make querylog` e depois liberar o domínio no `allowlists` |
 | Primeiro boot demorando | `make ssh` e `sudo tail -f /var/log/cloud-init-output.log` |
+| Repo estava inacessível no boot (privado/inexistente) | `make vm-bootstrap` |
