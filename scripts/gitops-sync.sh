@@ -48,7 +48,7 @@ main() {
   if dns_healthy; then
     echo "$target" >"$state_dir/applied"
     rm -f "$state_dir/failed"
-    docker image prune -f >/dev/null
+    docker image prune -af >/dev/null
     log "OK: ${target:0:7} aplicado"
   else
     log "ERRO: DNS não respondeu após aplicar ${target:0:7}"
