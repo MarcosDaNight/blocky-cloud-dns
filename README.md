@@ -211,6 +211,17 @@ Tudo roda em uma BV1-1-10, um IPv4 público e um bucket com alguns KB de state. 
 preços atuais em <https://magalu.cloud/precos>. `make destroy` remove a VM, o IP e o
 firewall. O bucket de state continua existindo e pode ser apagado manualmente.
 
+## Próximos passos
+
+- [ ] **Samsung TV:** confirmar que ela usa o Blocky (renovar o DHCP) e bloquear a telemetria da TV (`*.samsungads.com`, `*.samsungacr.com`) se a lista não cobrir.
+- [ ] **IP dinâmico automático:** agendar `AUTO_APPROVE=1 make update-ip` (cron ou systemd timer na máquina de casa).
+- [ ] **Healthcheck sem recriar a VM:** tirar o `healthcheck_url` do cloud-init, para que trocar a URL não exija recriar a VM.
+- [ ] **Alertar falha de GitOps:** o `gitops-sync.sh` ping `/fail` no healthchecks.io quando a validação falhar ou houver rollback.
+- [ ] **CI:** fixar `runs-on: ubuntu-24.04` (o `ubuntu-latest` migra para o Ubuntu 26 em 19/10/2026).
+- [ ] **Bloqueio fora de casa:** expor DoT/DoH (porta 853/443 com TLS e domínio próprio) para usar o Blocky no 4G como "DNS privado" do celular. Exige autenticação ou allowlist, para não virar resolver público.
+- [ ] **Renovar a API key** `blocky-terraform` antes de **28/09/2027** (comando no `.env.example`).
+- [ ] **Escala:** se a RAM disponível ficar abaixo de ~100 MB de forma consistente (`make status`), migrar para a `BV1-2-10`.
+
 ## Troubleshooting
 
 | Sintoma | Verifique |
