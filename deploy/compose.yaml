@@ -45,7 +45,7 @@ services:
     mem_limit: 64m
 
   grafana:
-    image: grafana/grafana:13.2.2
+    image: grafana/grafana:13.2.2-slim
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
@@ -63,7 +63,8 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
-    mem_limit: 192m
+    # Medido: ~190 MB em uso ocioso; 192m deixava o Grafana no teto do cgroup.
+    mem_limit: 320m
 
 volumes:
   blocky-cache:
