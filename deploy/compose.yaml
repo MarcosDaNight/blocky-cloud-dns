@@ -45,7 +45,7 @@ services:
     mem_limit: 64m
 
   grafana:
-    image: grafana/grafana:13.2.2-slim
+    image: grafana/grafana:13.2.3-slim
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
