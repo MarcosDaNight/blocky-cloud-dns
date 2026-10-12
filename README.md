@@ -187,6 +187,10 @@ fora), e ela sobe já liberando esse IP.
     o bloqueio.
   - **Node Exporter Full**: CPU, RAM, swap, disco e rede da VM.
 - **Prometheus** coleta métricas a cada 30 s e guarda 30 dias (limitado a 1 GB).
+- **Checklist mensal:** todo dia 1º o workflow `monthly-checklist` abre uma issue atribuída
+  a você com as verificações do mês (confirmar o hostname no No-IP, conferir o allowlist,
+  o healthcheck, os PRs do Dependabot e os prazos). Para abrir uma fora de hora:
+  *Actions → monthly-checklist → Run workflow*.
 - **Alerta externo (recomendado):** a VM não tem como avisar que ela mesma caiu. Crie um
   check gratuito em <https://healthchecks.io> (período de 5 min, tolerância de 10 min),
   coloque a URL em `healthcheck_url` no `terraform.tfvars` e rode `make apply`. A cada
