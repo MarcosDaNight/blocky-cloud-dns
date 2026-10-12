@@ -59,6 +59,12 @@ services:
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/blocky.json
+      # A imagem slim baixa 18 plugins no boot (~500 MB no volume); só o datasource
+      # Prometheus é usado. Ele é instalado antes do provisioning e os demais são
+      # desativados (o que também os tira da lista de instalação).
+      GF_PLUGINS_PREINSTALL_SYNC: prometheus
+      GF_PLUGINS_DISABLE_PLUGINS: >-
+        grafana-lokiexplore-app,grafana-pyroscope-app,grafana-exploretraces-app,grafana-metricsdrilldown-app,grafana-advisor-app,elasticsearch,tempo,zipkin,opentsdb,stackdriver,mssql,jaeger,loki,mysql,influxdb,grafana-postgresql-datasource,grafana-pyroscope-datasource
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro

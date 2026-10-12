@@ -64,9 +64,20 @@ flowchart LR
 - **Upstreams DoH.** As consultas saem da VM criptografadas para Cloudflare e Quad9, então
   nem o provedor da nuvem nem o de internet enxergam o conteúdo.
 - **Uso consciente de recursos.** É a menor VM disponível (1 vCPU, 1 GB de RAM e 10 GB de
-  disco), com 1 GB de swap, limite de memória em cada container, rotação de logs e
-  retenção de métricas limitada (30 dias ou 1 GB). O Blocky usa cerca de 75 MB de RAM com
-  a lista de ~230 mil domínios.
+  disco), com 1 GB de swap e limite de memória em cada container. O Blocky usa cerca de
+  75 MB de RAM com a lista de ~230 mil domínios.
+- **Disco com teto em tudo que cresce:**
+
+  | O que cresce | Limite |
+  |---|---|
+  | logs dos containers | 10 MB × 3 por container |
+  | query log do Blocky | 7 dias (~1,5 MB/dia) |
+  | Prometheus | 30 dias ou 1 GB (~5–7 MB/dia) |
+  | imagens Docker | apagadas após cada deploy |
+  | plugins do Grafana | só o datasource Prometheus (a imagem slim baixaria 18, ~500 MB) |
+  | cache do apt e journal | limpeza semanal (`blocky-maintenance.timer`), journal ≤ 200 MB |
+
+  Pior caso estimado: ~75% dos 10 GB. O healthcheck alerta a partir de 85%.
 
 ## Estrutura
 
@@ -77,7 +88,7 @@ deploy/                 Tudo que roda na VM (fonte da verdade do GitOps)
   blocky/config.yml     ← configuração do Blocky (o arquivo que você mais vai editar)
   prometheus/           scrape config
   grafana/              datasource e dashboards provisionados
-  systemd/              timers do GitOps, do healthcheck e do allowlist
+  systemd/              timers do GitOps, healthcheck, allowlist e limpeza semanal
 scripts/
   gitops-sync.sh        reconciliação na VM: validar → aplicar → verificar → rollback
   healthcheck.sh        testa resolução/bloqueio e pinga o healthchecks.io (opcional)
@@ -238,7 +249,7 @@ fora), e ela sobe já liberando esse IP.
   coloque a URL em `healthcheck_url` no `terraform.tfvars` e rode `make apply`. A cada
   5 min o `healthcheck.sh` testa se o Blocky **resolve e bloqueia** e se **chegou alguma
   consulta da rede de casa nos últimos 30 min** (silêncio = casa sem acesso, ex.: DDNS
-  desatualizado). Se algo falhar, ou se a VM sumir, o healthchecks.io envia e-mail,
+  desatualizado) e se o **disco está abaixo de 85%**. Se algo falhar, ou se a VM sumir, o healthchecks.io envia e-mail,
   Telegram etc.
 
 > Mudar `healthcheck_url`, `home_ddns_host` ou `extra_allowed_cidrs` altera o cloud-init,
