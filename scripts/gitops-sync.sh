@@ -94,11 +94,11 @@ apply() {
       reload=true
     fi
   done
-  if $reload; then
-    systemctl daemon-reload
-    systemctl enable blocky-allowlist.service
-    systemctl enable --now blocky-gitops.timer blocky-healthcheck.timer blocky-allowlist.timer
-  fi
+  $reload && systemctl daemon-reload
+  # Idempotente e barato: roda sempre, para units novas serem habilitadas mesmo
+  # quando instaladas por uma versão anterior deste script.
+  systemctl enable --quiet blocky-allowlist.service
+  systemctl enable --quiet --now blocky-gitops.timer blocky-healthcheck.timer blocky-allowlist.timer
 
   # Filtro de origem ativo antes de qualquer container publicar a porta 53.
   systemctl start blocky-allowlist.service
