@@ -1,15 +1,12 @@
 locals {
-  dns_allowed_cidrs = concat(["${var.home_ip}/32"], var.extra_allowed_cidrs)
-
-  # Regras de entrada: DNS (udp+tcp) para os CIDRs autorizados e SSH só da residência.
-  ingress_rules = merge(
-    { for pair in setproduct(local.dns_allowed_cidrs, ["udp", "tcp"]) :
-      "dns-${pair[1]}-${pair[0]}" => { protocol = pair[1], port = 53, cidr = pair[0], description = "DNS ${pair[1]}" }
-    },
-    {
-      "ssh-${var.home_ip}/32" = { protocol = "tcp", port = 22, cidr = "${var.home_ip}/32", description = "SSH (casa)" }
-    },
-  )
+  # O Security Group só restringe portas; a origem (IP de casa via DDNS + CIDRs
+  # extras) é filtrada na própria VM por scripts/allowlist.sh, que acompanha o
+  # IP dinâmico sem precisar de credencial da nuvem.
+  ingress_rules = {
+    dns-udp = { protocol = "udp", port = 53, description = "DNS udp (origem filtrada no host)" }
+    dns-tcp = { protocol = "tcp", port = 53, description = "DNS tcp (origem filtrada no host)" }
+    ssh     = { protocol = "tcp", port = 22, description = "SSH (origem filtrada no host)" }
+  }
 }
 
 data "mgc_network_vpcs" "all" {}
@@ -22,7 +19,7 @@ locals {
 
 resource "mgc_network_security_groups" "this" {
   name                  = "${var.name}-sg"
-  description           = "Blocky DNS: entrada apenas da residencia"
+  description           = "Blocky DNS: portas 53 e 22, origem filtrada no host"
   disable_default_rules = true
 }
 
@@ -46,7 +43,7 @@ resource "mgc_network_security_groups_rules" "ingress" {
   protocol          = each.value.protocol
   port_range_min    = each.value.port
   port_range_max    = each.value.port
-  remote_ip_prefix  = each.value.cidr
+  remote_ip_prefix  = "0.0.0.0/0"
 }
 
 # --- IP público -----------------------------------------------------------------
@@ -75,8 +72,10 @@ resource "mgc_virtual_machine_instances" "this" {
   creation_security_groups = [mgc_network_security_groups.this.id]
 
   user_data = base64encode(templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    repo_url        = var.repo_url
-    repo_branch     = var.repo_branch
-    healthcheck_url = var.healthcheck_url
+    repo_url            = var.repo_url
+    repo_branch         = var.repo_branch
+    healthcheck_url     = var.healthcheck_url
+    home_ddns_host      = var.home_ddns_host
+    extra_allowed_cidrs = join(",", var.extra_allowed_cidrs)
   }))
 }

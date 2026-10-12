@@ -8,7 +8,7 @@ output "ssh" {
   value       = "ssh ubuntu@${mgc_network_public_ips.this.public_ip}"
 }
 
-output "allowed_cidrs" {
-  description = "CIDRs autorizados no firewall."
-  value       = local.dns_allowed_cidrs
+output "home_ddns_host" {
+  description = "Hostname DDNS cujo IP a VM libera (veja `make allowlist`)."
+  value       = var.home_ddns_host
 }

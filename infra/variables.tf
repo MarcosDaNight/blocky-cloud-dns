@@ -34,20 +34,25 @@ variable "ssh_key_name" {
   default     = "mgdn-key"
 }
 
-variable "home_ip" {
-  description = "IP público IPv4 da residência. Único IP autorizado em DNS (53) e SSH (22). Atualize com `make update-ip`."
+variable "home_ddns_host" {
+  description = "Hostname DDNS mantido pelo roteador de casa. A VM resolve a cada 2 min e libera só esse IP em DNS (53) e SSH (22)."
   type        = string
 
   validation {
-    condition     = can(cidrhost("${var.home_ip}/32", 0))
-    error_message = "home_ip deve ser um IPv4 válido, sem máscara (ex.: 203.0.113.10)."
+    condition     = can(regex("^[a-z0-9.-]+\\.[a-z]{2,}$", var.home_ddns_host))
+    error_message = "home_ddns_host deve ser um hostname (ex.: minha-casa.duckdns.org)."
   }
 }
 
 variable "extra_allowed_cidrs" {
-  description = "CIDRs IPv4 adicionais autorizados a usar o DNS (ex.: casa de familiares)."
+  description = "CIDRs IPv4 fixos autorizados além do IP de casa (ex.: casa de familiares, break-glass)."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for c in var.extra_allowed_cidrs : can(cidrhost(c, 0))])
+    error_message = "extra_allowed_cidrs deve conter CIDRs IPv4 (ex.: 198.51.100.7/32)."
+  }
 }
 
 variable "repo_url" {

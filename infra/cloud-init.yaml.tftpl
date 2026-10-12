@@ -13,6 +13,7 @@ packages:
   - git
   - dnsutils
   - curl
+  - nftables
 
 swap:
   filename: /swapfile
@@ -34,6 +35,8 @@ write_files:
       REPO_URL=${repo_url}
       REPO_BRANCH=${repo_branch}
       HEALTHCHECK_URL=${healthcheck_url}
+      HOME_DDNS_HOST=${home_ddns_host}
+      EXTRA_ALLOWED_CIDRS=${extra_allowed_cidrs}
   # Patches de segurança automáticos, com reboot de madrugada se necessário.
   - path: /etc/apt/apt.conf.d/52blocky-cloud-dns
     content: |

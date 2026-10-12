@@ -96,8 +96,12 @@ apply() {
   done
   if $reload; then
     systemctl daemon-reload
-    systemctl enable --now blocky-gitops.timer blocky-healthcheck.timer
+    systemctl enable blocky-allowlist.service
+    systemctl enable --now blocky-gitops.timer blocky-healthcheck.timer blocky-allowlist.timer
   fi
+
+  # Filtro de origem ativo antes de qualquer container publicar a porta 53.
+  systemctl start blocky-allowlist.service
 
   compose pull --quiet
   compose up -d --remove-orphans

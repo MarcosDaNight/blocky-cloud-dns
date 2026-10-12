@@ -15,7 +15,7 @@ help: ## Lista os comandos
 
 # --- Infra ----------------------------------------------------------------------
 
-.PHONY: bootstrap init plan apply destroy update-ip
+.PHONY: bootstrap init plan apply destroy
 bootstrap: ## Cria o bucket do state remoto (uma vez) e roda o init
 	@$(ENV) scripts/bootstrap-state.sh
 	@$(MAKE) --no-print-directory init
@@ -32,12 +32,9 @@ apply: ## terraform apply
 destroy: ## Destroi VM, IP e firewall (o bucket de state permanece)
 	@cd $(TFDIR) && $(ENV_ABS) $(TF) destroy
 
-update-ip: ## Detecta o IP atual de casa e atualiza o firewall (AUTO_APPROVE=1 p/ não perguntar)
-	@$(ENV) TF=$(TF) scripts/update-ip.sh
-
 # --- Operação -------------------------------------------------------------------
 
-.PHONY: ssh tunnel grafana-password status vm-bootstrap sync logs querylog test
+.PHONY: ssh tunnel grafana-password status allowlist vm-bootstrap sync logs querylog test
 ssh: ## SSH na VM
 	@$(SSH)
 
@@ -54,6 +51,10 @@ status: ## Estado dos containers, commit aplicado e último sync
 	@$(SSH) 'echo "commit aplicado: $$(sudo cat /var/lib/blocky-cloud-dns/applied | cut -c1-7)"; \
 	  $(COMPOSE) ps --format "table {{.Service}}\t{{.Status}}"; echo; \
 	  systemctl list-timers "blocky-*" --no-pager; echo; free -h; df -h /'
+
+allowlist: ## IP de casa liberado (via DDNS) e últimas trocas
+	@$(SSH) 'sudo nft list set inet blocky_allowlist allowed | grep -E "elements|allowed"; \
+	  sudo journalctl -u blocky-allowlist --since "-7 days" -o short-iso | grep -E "IP de casa|AVISO" | tail -5'
 
 vm-bootstrap: ## Clona o repo na VM (se faltar) e roda o primeiro sync — se o repo não estava acessível no boot
 	@$(SSH) "sudo bash -c '. /etc/blocky-cloud-dns/env; test -d /opt/blocky-cloud-dns/.git || git clone -q -b \$$REPO_BRANCH \$$REPO_URL /opt/blocky-cloud-dns; /opt/blocky-cloud-dns/scripts/gitops-sync.sh --force'"
