@@ -7,24 +7,28 @@ telemetria e domínios de malware bloqueados — sem instalar nada nos dispositi
 
 ```mermaid
 flowchart LR
-  subgraph casa["Casa (IP público dinâmico)"]
-    dev["Celulares, TVs, PCs"] --> router["Roteador<br/>(DNS = IP da VM)"]
+  subgraph casa["Casa"]
+    dev["Celulares, TVs, PCs"] --> router["Seu roteador<br/>DHCP: DNS = IP da VM<br/>cliente DDNS"]
+    router --> isp["Roteador da operadora"]
   end
-  router -- "atualiza o IP" --> ddns["DDNS<br/>(minha-casa.ddns.net)"]
-  router -- "UDP/TCP 53" --> sg
+  isp --> cgnat["CGNAT da operadora<br/>IP público dinâmico"]
+  router -. "atualiza o IP" .-> ddns["No-IP<br/>hostname DDNS"]
+  cgnat -- "UDP/TCP 53" --> sg
   subgraph mgc["Magalu Cloud · br-ne1"]
-    sg["Security Group<br/>(só portas 53/22)"] --> fw
-    subgraph vm["VM BV1-1-10 · Ubuntu 24.04"]
-      fw["nftables<br/>só o IP de casa passa"] --> blocky
-      allow["blocky-allowlist.timer"] -. "resolve a cada 2 min" .-> ddns
-      allow --> fw
-      blocky["Blocky"] --> prom["Prometheus"] --> graf["Grafana"]
+    sg["Security Group<br/>só portas 53 e 22"] --> fw
+    subgraph vm["VM BV1-1-10 · Ubuntu 24.04 · IP público fixo"]
+      fw["nftables<br/>só o IP de casa passa"] --> blocky["Blocky"]
+      allow["blocky-allowlist.timer"] -- "recria a cada 2 min" --> fw
+      blocky --> prom["Prometheus"] --> graf["Grafana"]
       node["node-exporter"] --> prom
+      hc["blocky-healthcheck.timer"]
       gitops["blocky-gitops.timer"]
     end
   end
-  blocky -- "DoH (criptografado)" --> up["Cloudflare / Quad9"]
-  gitops -- "git pull a cada 2 min" --> gh["GitHub (main)"]
+  allow -. "resolve" .-> ddns
+  blocky -- "DoH" --> up["Cloudflare / Quad9"]
+  gitops -- "git pull a cada 2 min" --> gh["GitHub main<br/>CI, Dependabot, checklist mensal"]
+  hc -- "ping a cada 5 min" --> hcio["healthchecks.io<br/>alerta por e-mail"]
 ```
 
 ## Como funciona
@@ -79,6 +83,11 @@ scripts/
   healthcheck.sh        testa resolução/bloqueio e pinga o healthchecks.io (opcional)
   allowlist.sh          libera só o IP de casa (via DDNS) em DNS e SSH
   bootstrap-state.sh    cria o bucket do state do Terraform (uma vez)
+.github/
+  workflows/ci.yml      gate do GitOps: Terraform, blocky validate, promtool, pre-commit
+  workflows/monthly-checklist.yml  abre a issue de manutenção todo dia 1º
+  monthly-checklist.md  conteúdo dessa issue
+  dependabot.yml        PRs semanais de imagens, Terraform e Actions
 Makefile                interface de operação (`make help`)
 ```
 
@@ -96,7 +105,7 @@ cp .env.example .env    # preencha com api_key, key_pair_id e key_pair_secret
 make bootstrap
 make hooks              # requer `pip install pre-commit`
 
-# 3. DDNS no roteador (No-IP, DynDNS, DuckDNS…) e variáveis locais
+# 3. DDNS no roteador (veja "Configurar o DDNS" abaixo) e variáveis locais
 cp infra/terraform.tfvars.example infra/terraform.tfvars   # home_ddns_host = "<seu hostname>"
 make apply
 ```
@@ -121,6 +130,39 @@ make test
 > Não use um DNS público (8.8.8.8 etc.) como secundário: os dispositivos alternam entre
 > os servidores e os anúncios voltam a aparecer. A contrapartida é que, se a VM cair, a
 > internet de casa fica "sem DNS". Por isso existe o healthcheck com alerta (veja abaixo).
+
+### Configurar o DDNS
+
+A VM só aceita o IP que o hostname DDNS devolve, então ele precisa estar sempre certo.
+
+1. No [No-IP](https://www.noip.com) (gratuito), crie um hostname **difícil de adivinhar**,
+   com **Habilitar DNS dinâmico** marcado e **Wildcard** desmarcado.
+2. Crie uma **Chave DDNS** para esse hostname. É uma credencial que só serve para
+   atualizar o IP, então a senha da conta não fica gravada no roteador.
+3. No roteador, em **DNS Dinâmico**: provedor **NO-IP**, usuário e senha da **Chave DDNS**
+   e domínio **`all.ddnskey.com`**. Clique em *Efetuar login* e depois em *Salvar*.
+4. **Valide antes de usar:** no painel do No-IP, mude o IP do hostname para `1.2.3.4`,
+   clique em *Efetuar login* no roteador de novo e confira se o hostname voltou para o
+   seu IP público:
+   ```bash
+   dig +short <hostname> @1.1.1.1
+   curl -s https://1.1.1.1/cdn-cgi/trace | grep ip=
+   ```
+5. Coloque o hostname em `home_ddns_host` no `terraform.tfvars` e rode `make apply`.
+
+Pontos que valem para este setup (dois roteadores e CGNAT):
+
+- **Configure o DDNS no roteador que você controla.** Roteadores de operadora costumam
+  bloquear alterações. O TP-Link da Brisanet, por exemplo, devolve o erro 4508. Aqui o
+  DDNS ficou no Mercusys AC12G, que fica atrás do roteador da operadora.
+- **CGNAT:** se a WAN do roteador da operadora está em `100.64.0.0/10`, o IP público não
+  aparece em nenhum roteador. Mesmo assim funciona, porque o No-IP registra o IP de origem
+  da atualização. O teste do `1.2.3.4` é o que comprova. Se o roteador publicar um IP
+  privado, `allowlist.sh` descarta o valor e mantém o último IP válido.
+- **Deixe "DNS manual" desmarcado na WAN do seu roteador.** O cliente DDNS dele resolve
+  nomes pelo DNS da operadora, não pelo Blocky. Por isso a atualização funciona justamente
+  quando a casa perdeu o acesso ao Blocky.
+- **No-IP gratuito:** confirme o hostname a cada 30 dias. O checklist mensal lembra.
 
 ## Operação do dia a dia
 
