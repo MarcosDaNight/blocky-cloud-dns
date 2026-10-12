@@ -43,7 +43,7 @@ else
 fi
 
 echo "[healthcheck] $status resolve=${resolve:-none} block=${block:-none} home_queries_${idle_window_min}m=${home}"
-[[ "$home" == "0" ]] && echo "[healthcheck] nenhuma consulta da rede de casa em ${idle_window_min} min — o IP de casa mudou? rode 'make update-ip'"
+[[ "$home" == "0" ]] && echo "[healthcheck] nenhuma consulta da rede de casa em ${idle_window_min} min — DDNS do roteador desatualizado? veja 'make allowlist'"
 
 if [[ -n "${HEALTHCHECK_URL:-}" ]]; then
   curl -fsS -m 10 --retry 3 -o /dev/null "${HEALTHCHECK_URL}${suffix}" || true

@@ -10,10 +10,14 @@ flowchart LR
   subgraph casa["Casa (IP público dinâmico)"]
     dev["Celulares, TVs, PCs"] --> router["Roteador<br/>(DNS = IP da VM)"]
   end
-  router -- "UDP/TCP 53<br/>só o IP de casa passa" --> sg
+  router -- "atualiza o IP" --> ddns["DDNS<br/>(minha-casa.ddns.net)"]
+  router -- "UDP/TCP 53" --> sg
   subgraph mgc["Magalu Cloud · br-ne1"]
-    sg["Security Group"] --> blocky
+    sg["Security Group<br/>(só portas 53/22)"] --> fw
     subgraph vm["VM BV1-1-10 · Ubuntu 24.04"]
+      fw["nftables<br/>só o IP de casa passa"] --> blocky
+      allow["blocky-allowlist.timer"] -. "resolve a cada 2 min" .-> ddns
+      allow --> fw
       blocky["Blocky"] --> prom["Prometheus"] --> graf["Grafana"]
       node["node-exporter"] --> prom
       gitops["blocky-gitops.timer"]
@@ -34,10 +38,14 @@ flowchart LR
 
 ### Decisões de projeto
 
-- **Firewall por IP de origem.** O Security Group só aceita a porta 53 (UDP e TCP) e o SSH
-  vindos do IP público de casa. Todo o resto é descartado, inclusive IPv6. Assim o
-  servidor não fica aberto como resolver público, o que evita ser usado em ataques de
-  amplificação de DNS.
+- **Firewall por IP de origem, acompanhando o IP dinâmico.** O roteador mantém um hostname
+  DDNS com o IP atual de casa. A cada 2 min a VM resolve esse hostname e recria uma tabela
+  nftables (`scripts/allowlist.sh`) que só deixa esse IP (e os `extra_allowed_cidrs`)
+  falar com o DNS (53) e o SSH (22). Quando a operadora troca o IP, a VM se ajusta sozinha
+  em até ~2 min. O Security Group só restringe portas, e nunca entra IPv6. Assim o servidor
+  não vira resolver público (amplificação de DNS) e a VM não precisa de nenhuma credencial
+  da nuvem. A tabela falha fechada (sem origem conhecida, ninguém passa), mantém o último
+  IP válido se o DDNS falhar e sobe antes do Docker no boot.
 - **O IP público é um recurso separado da VM.** Se a VM for recriada (troca de imagem,
   mudança no cloud-init), o IP continua o mesmo, então o roteador não precisa ser
   reconfigurado.
@@ -65,11 +73,11 @@ deploy/                 Tudo que roda na VM (fonte da verdade do GitOps)
   blocky/config.yml     ← configuração do Blocky (o arquivo que você mais vai editar)
   prometheus/           scrape config
   grafana/              datasource e dashboards provisionados
-  systemd/              timers do GitOps e do healthcheck
+  systemd/              timers do GitOps, do healthcheck e do allowlist
 scripts/
   gitops-sync.sh        reconciliação na VM: validar → aplicar → verificar → rollback
   healthcheck.sh        testa resolução/bloqueio e pinga o healthchecks.io (opcional)
-  update-ip.sh          atualiza o firewall quando o IP de casa muda
+  allowlist.sh          libera só o IP de casa (via DDNS) em DNS e SSH
   bootstrap-state.sh    cria o bucket do state do Terraform (uma vez)
 Makefile                interface de operação (`make help`)
 ```
@@ -88,9 +96,9 @@ cp .env.example .env    # preencha com api_key, key_pair_id e key_pair_secret
 make bootstrap
 make hooks              # requer `pip install pre-commit`
 
-# 3. Variáveis locais (o IP de casa é detectado automaticamente)
-cp infra/terraform.tfvars.example infra/terraform.tfvars
-make update-ip          # preenche home_ip e roda terraform apply
+# 3. DDNS no roteador (No-IP, DynDNS, DuckDNS…) e variáveis locais
+cp infra/terraform.tfvars.example infra/terraform.tfvars   # home_ddns_host = "<seu hostname>"
+make apply
 ```
 
 O `apply` cria a VM. O cloud-init instala o Docker, clona este repositório e chama o
@@ -130,7 +138,7 @@ make help
 | `make tunnel` | Grafana em `:3000`, Prometheus em `:9090`, API do Blocky em `:4000` |
 | `make grafana-password` | senha do admin do Grafana |
 | `make ssh` | shell na VM |
-| `make update-ip` | reaplica o firewall com o IP atual de casa |
+| `make allowlist` | IP de casa liberado agora e as últimas trocas detectadas |
 | `make lint` | pre-commit em todos os arquivos + `terraform validate` |
 
 ### Mudar a configuração do Blocky
@@ -159,16 +167,16 @@ Não há mudança manual na VM: o que não estiver na `main` é sobrescrito no p
 
 ### IP de casa mudou
 
-O sintoma é que a internet de casa fica sem DNS. De qualquer máquina da rede, rode:
+Nada a fazer: o roteador atualiza o DDNS e a VM libera o IP novo em até ~2 min
+(`make allowlist` mostra o IP atual e o histórico de trocas).
 
-```bash
-make update-ip                 # mostra o plan e pede confirmação
-AUTO_APPROVE=1 make update-ip  # sem confirmação (útil num cron/timer local)
-```
+Se o DNS de casa parar mesmo assim, o DDNS do roteador provavelmente parou de atualizar.
+Confira com `dig +short <home_ddns_host> @1.1.1.1` contra o seu IP
+(`curl https://1.1.1.1/cdn-cgi/trace`). Corrija o DDNS no roteador e espere 2 min.
 
-O script descobre o IP via `https://1.1.1.1/cdn-cgi/trace` (IP literal), então funciona
-mesmo com o DNS de casa fora do ar. Se o IP mudar com frequência, agende o
-`AUTO_APPROVE=1 make update-ip` num cron da sua máquina.
+**Break-glass** (DDNS fora e você sem SSH): coloque o IP atual em `extra_allowed_cidrs`
+no `terraform.tfvars` e rode `make apply`. Isso recria a VM (mesmo IP público, ~5 min de DNS
+fora), e ela sobe já liberando esse IP.
 
 ## Monitoramento
 
@@ -182,10 +190,13 @@ mesmo com o DNS de casa fora do ar. Se o IP mudar com frequência, agende o
 - **Alerta externo (recomendado):** a VM não tem como avisar que ela mesma caiu. Crie um
   check gratuito em <https://healthchecks.io> (período de 5 min, tolerância de 10 min),
   coloque a URL em `healthcheck_url` no `terraform.tfvars` e rode `make apply`. A cada
-  5 min o `healthcheck.sh` testa se o Blocky **resolve e bloqueia**. Se o teste falhar, ou
-  se a VM sumir, o healthchecks.io envia e-mail, Telegram etc.
+  5 min o `healthcheck.sh` testa se o Blocky **resolve e bloqueia** e se **chegou alguma
+  consulta da rede de casa nos últimos 30 min** (silêncio = casa sem acesso, ex.: DDNS
+  desatualizado). Se algo falhar, ou se a VM sumir, o healthchecks.io envia e-mail,
+  Telegram etc.
 
-> Mudar `healthcheck_url` altera o cloud-init, então **a VM é recriada**. O IP público
+> Mudar `healthcheck_url`, `home_ddns_host` ou `extra_allowed_cidrs` altera o cloud-init,
+> então **a VM é recriada**. O IP público
 > continua o mesmo e o DNS fica fora por uns 5 minutos.
 
 ## Segurança e limitações
@@ -203,7 +214,9 @@ mesmo com o DNS de casa fora do ar. Se o IP mudar com frequência, agende o
   filtrado, sem dados sensíveis), mas vale saber.
 - **Credenciais:** a API key usada pelo Terraform tem escopo mínimo (VM, rede e object
   storage) e expira em 1 ano. Renove antes do vencimento com o comando do `.env.example`.
-- **SSH:** só por chave e só a partir do IP de casa.
+- **SSH:** só por chave e só a partir do IP de casa (mesmo allowlist do DNS).
+- **DDNS:** quem controla o hostname controla quem pode usar o DNS. Use uma conta DDNS com
+  senha forte e não publique o hostname (ele fica só no `terraform.tfvars`).
 
 ## Custos
 
@@ -214,7 +227,7 @@ firewall. O bucket de state continua existindo e pode ser apagado manualmente.
 ## Próximos passos
 
 - [ ] **Samsung TV:** confirmar que ela usa o Blocky (renovar o DHCP) e bloquear a telemetria da TV (`*.samsungads.com`, `*.samsungacr.com`) se a lista não cobrir.
-- [ ] **IP dinâmico automático:** agendar `AUTO_APPROVE=1 make update-ip` (cron ou systemd timer na máquina de casa).
+- [x] **IP dinâmico automático:** DDNS no roteador + allowlist no host (`scripts/allowlist.sh`).
 - [ ] **Healthcheck sem recriar a VM:** tirar o `healthcheck_url` do cloud-init, para que trocar a URL não exija recriar a VM.
 - [ ] **Alertar falha de GitOps:** o `gitops-sync.sh` ping `/fail` no healthchecks.io quando a validação falhar ou houver rollback.
 - [ ] **CI:** fixar `runs-on: ubuntu-24.04` (o `ubuntu-latest` migra para o Ubuntu 26 em 19/10/2026).
@@ -226,7 +239,7 @@ firewall. O bucket de state continua existindo e pode ser apagado manualmente.
 
 | Sintoma | Verifique |
 |---|---|
-| Nada resolve em casa | `make update-ip` (o IP mudou?) e depois `make status` |
+| Nada resolve em casa | `make allowlist` (o DDNS acompanha o IP atual?) e depois `make status` |
 | `make ssh` diz *host key changed* | a VM foi recriada: `ssh-keygen -R $(terraform -chdir=infra output -raw dns_ip)` |
 | Commit não foi aplicado | `make ssh` e `journalctl -u blocky-gitops -n 50` (validação falhou? houve rollback?) |
 | Algum app/site quebrou | `make querylog` e depois liberar o domínio no `allowlists` |
