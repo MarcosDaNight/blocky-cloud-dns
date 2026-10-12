@@ -20,6 +20,11 @@ main() {
   mkdir -p "$state_dir"
   cd "$repo"
 
+  # Uma execução por vez: no primeiro boot o cloud-init e o timer disparavam juntos
+  # e os dois `compose up` brigavam pelos mesmos nomes de container.
+  exec 9>/run/blocky-cloud-dns-gitops.lock
+  flock -w 900 9
+
   git fetch --quiet origin "$REPO_BRANCH"
   local target applied failed
   target=$(git rev-parse "origin/$REPO_BRANCH")
