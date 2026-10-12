@@ -98,7 +98,7 @@ apply() {
   # Idempotente e barato: roda sempre, para units novas serem habilitadas mesmo
   # quando instaladas por uma versão anterior deste script.
   systemctl enable --quiet blocky-allowlist.service
-  systemctl enable --quiet --now blocky-gitops.timer blocky-healthcheck.timer blocky-allowlist.timer
+  systemctl enable --quiet --now blocky-gitops.timer blocky-healthcheck.timer blocky-allowlist.timer blocky-maintenance.timer
 
   # Filtro de origem ativo antes de qualquer container publicar a porta 53.
   systemctl start blocky-allowlist.service
