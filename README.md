@@ -1,5 +1,11 @@
 # blocky-cloud-dns
 
+> **Projeto encerrado.** Este repositório está congelado na release
+> [`1.0.0`](https://github.com/MarcosDaNight/blocky-cloud-dns/releases/tag/1.0.0). A
+> infraestrutura migrou para o [mgdn-platform](https://github.com/MarcosDaNight/mgdn-platform),
+> que herdou o IP público (o roteador de casa não muda). O motivo está no
+> [ADR 0004](https://github.com/MarcosDaNight/mgdn-platform/blob/main/docs/adr/0004-evolucao-do-blocky-cloud-dns.md).
+
 DNS com bloqueio de anúncios e rastreadores para a rede de casa, rodando
 [Blocky](https://0xerr0r.github.io/blocky/latest/) numa VM mínima da Magalu Cloud.
 Qualquer dispositivo que use o roteador como DNS passa a ter anúncios, rastreadores,
